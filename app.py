@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import joblib
+import xgboost
+import sklearn
 import os
 
 st.set_page_config(page_title="Credit Risk Predictor", page_icon="🏦")
