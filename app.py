@@ -1,79 +1,92 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import joblib
-import xgboost
-import sklearn
 import os
+from pathlib import Path
 
-st.set_page_config(page_title="Credit Risk Predictor", page_icon="🏦")
+# Get the absolute path to the directory where this script is located
+BASE_DIR = Path(__file__).parent.absolute()
 
 st.title("🏦 Credit Risk Prediction App")
-st.write("Enter applicant information to predict credit risk (Good/Bad)")
+st.write("Enter applicant information to predict if the credit risk is good or bad")
 
-# Show all files in current directory (for debugging)
-st.write("📁 Files found in directory:")
-files = os.listdir('.')
-st.write(files)
+# Check if model files exist
+model_path = BASE_DIR / "extra_xgb_credit_model.pkl"
+encoder_files = {
+    "Sex": BASE_DIR / "Sex_encoder.pkl",
+    "Housing": BASE_DIR / "Housing_encoder.pkl",
+    "Saving accounts": BASE_DIR / "Saving accounts_encoder.pkl",
+    "Checking account": BASE_DIR / "Checking account_encoder.pkl"
+}
 
-# Find model file
-model_files = [f for f in files if f.endswith('.pkl') or 'model' in f.lower()]
-st.write("🔍 Potential model files:", model_files)
+# Verify files exist
+missing_files = []
+if not model_path.exists():
+    missing_files.append("extra_xgb_credit_model.pkl")
 
-# Load model and encoders with error handling
-@st.cache_resource
-def load_model():
-    """Load the trained model and encoders"""
-    try:
-        # Try to find any .pkl file that might be the model
-        model = None
-        for file in files:
-            if file.endswith('.pkl') and ('xgb' in file.lower() or 'model' in file.lower()):
-                try:
-                    model = joblib.load(file)
-                    st.success(f"✅ Loaded model from: {file}")
-                    break
-                except:
-                    continue
-        
-        if model is None:
-            st.error("❌ Could not find a valid model file")
-            return None, None
-        
-        encoders = {}
-        encoder_files = ["Sex", "Housing", "Saving accounts", "Checking account"]
-        for col in encoder_files:
-            try:
-                # Try different possible filenames
-                possible_names = [
-                    f"{col}_encoder.pkl",
-                    f"{col}.pkl",
-                    f"{col.replace(' ', '')}_encoder.pkl"
-                ]
-                
-                for name in possible_names:
-                    if name in files:
-                        encoders[col] = joblib.load(name)
-                        st.success(f"✅ Loaded encoder: {name}")
-                        break
-                else:
-                    st.warning(f"⚠️ Could not load encoder for {col}")
-                    encoders[col] = None
-                    
-            except Exception as e:
-                st.warning(f"⚠️ Error loading encoder for {col}: {str(e)}")
-                encoders[col] = None
-                
-        return model, encoders
-    except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
-        return None, None
+for name, path in encoder_files.items():
+    if not path.exists():
+        missing_files.append(f"{name}_encoder.pkl")
 
-model, encoders = load_model()
-
-if model is None:
-    st.error("❌ Model not found. Please check that model files are in the correct location.")
+if missing_files:
+    st.error(f"❌ Missing model files: {', '.join(missing_files)}")
     st.stop()
 
-# Rest of your form code here...
-# (Keep your existing form code from here)
+# Load model and encoders
+try:
+    model = joblib.load(model_path)
+    encoders = {name: joblib.load(path) for name, path in encoder_files.items()}
+    st.success("✅ Model and encoders loaded successfully!")
+except Exception as e:
+    st.error(f"❌ Error loading model files: {str(e)}")
+    st.stop()
+
+# Input form
+with st.form("prediction_form"):
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        age = st.number_input("Age", min_value=18, max_value=100, value=30)
+        sex = st.selectbox("Sex", ["male", "female"])
+        job = st.number_input("Job (0–3)", min_value=0, max_value=3, value=1)
+        housing = st.selectbox("Housing", ["own", "rent", "free"])
+    
+    with col2:
+        saving_accounts = st.selectbox("Saving Accounts", ["little", "moderate", "rich", "quite rich"])
+        checking_account = st.selectbox("Checking Account", ["little", "moderate", "rich"])
+        credit_amount = st.number_input("Credit Amount", min_value=0, value=1000)
+        duration = st.number_input("Duration (months)", min_value=1, value=12)
+    
+    submitted = st.form_submit_button("🔮 Predict Risk")
+
+if submitted:
+    # Prepare input data
+    input_data = {
+        "Age": [age],
+        "Sex": [encoders["Sex"].transform([sex])[0]],
+        "Job": [job],
+        "Housing": [encoders["Housing"].transform([housing])[0]],
+        "Saving accounts": [encoders["Saving accounts"].transform([saving_accounts])[0]],
+        "Checking account": [encoders["Checking account"].transform([checking_account])[0]],
+        "Credit amount": [credit_amount],
+        "Duration": [duration]
+    }
+    
+    input_df = pd.DataFrame(input_data)
+    
+    # Make prediction
+    try:
+        pred = model.predict(input_df)[0]
+        
+        if pred == 1:
+            st.success("✅ The predicted credit risk is **GOOD**")
+        else:
+            st.error("❌ The predicted credit risk is **BAD**")
+            
+        # Show prediction probability if available
+        if hasattr(model, "predict_proba"):
+            proba = model.predict_proba(input_df)[0]
+            st.write(f"Confidence: Good: {proba[1]:.2%}, Bad: {proba[0]:.2%}")
+            
+    except Exception as e:
+        st.error(f"Prediction error: {str(e)}")
