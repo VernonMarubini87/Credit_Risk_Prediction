@@ -1,4 +1,4 @@
-# Credit Risk Prediction
+# Credit_Risk_Prediction
 
 Classification project predicting whether a loan applicant is a good or bad credit risk from their demographic and financial profile, built on the German Credit Data dataset and deployed as a live Streamlit app.
 
@@ -87,7 +87,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-> 🔗 *Add your deployed Streamlit Community Cloud link here once live.*
+> 🔗 
 
 ## Dataset
 
@@ -104,4 +104,3 @@ German Credit Data — 1,000 applicants with demographic and financial attribute
 ## Author
 
 Vernon Marubini — [LinkedIn](#) · [GitHub](#)
-# Credit_Risk_Prediction
